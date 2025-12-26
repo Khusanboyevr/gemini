@@ -1,0 +1,108 @@
+:root {
+  /* Dark Mode Colors - Deep Midnight */
+  --bg-main: #0f1721;
+  --sidebar-bg: rgba(23, 33, 43, 0.8);
+  --accent-color: #52a8e8;
+  --msg-sent: #2b5278;
+  --msg-received: #182533;
+  --text-main: #ffffff;
+  --text-dim: #7f91a4;
+  --border-color: rgba(255, 255, 255, 0.05);
+  --glass: blur(15px);
+}
+
+.light-mode {
+  --bg-main: #f0f2f5;
+  --sidebar-bg: rgba(255, 255, 255, 0.9);
+  --accent-color: #4a90e2;
+  --msg-sent: #effdde;
+  --msg-received: #ffffff;
+  --text-main: #000000;
+  --text-dim: #707579;
+  --border-color: #dfe1e5;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', -apple-system, sans-serif; }
+
+body { background: var(--bg-main); color: var(--text-main); overflow: hidden; }
+
+.app-container { display: flex; height: 100vh; width: 100vw; }
+
+/* Ultra-thin Navigation Rail */
+.nav-rail {
+  width: 72px; background: var(--sidebar-bg); backdrop-filter: var(--glass);
+  border-right: 1px solid var(--border-color); display: flex; flex-direction: column;
+  align-items: center; padding: 20px 0; gap: 20px; z-index: 10;
+}
+
+.nav-btn {
+  width: 44px; height: 44px; border-radius: 14px; display: flex; align-items: center;
+  justify-content: center; cursor: pointer; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  color: var(--text-dim); font-size: 20px;
+}
+.nav-btn:hover { background: rgba(255, 255, 255, 0.05); color: var(--text-main); }
+.nav-btn.active { background: var(--accent-color); color: white; box-shadow: 0 4px 15px rgba(82, 168, 232, 0.4); }
+
+/* Sidebar List */
+.sidebar-list {
+  width: 360px; background: var(--sidebar-bg); backdrop-filter: var(--glass);
+  border-right: 1px solid var(--border-color); display: flex; flex-direction: column;
+}
+
+.search-area { padding: 15px 20px; }
+.search-input {
+  width: 100%; background: var(--border-color); border: 1px solid transparent;
+  padding: 10px 15px; border-radius: 20px; color: var(--text-main); outline: none;
+  transition: 0.3s;
+}
+.search-input:focus { border-color: var(--accent-color); background: transparent; }
+
+.chat-card {
+  margin: 4px 10px; padding: 12px; border-radius: 12px; display: flex; align-items: center;
+  gap: 12px; cursor: pointer; transition: 0.2s;
+}
+.chat-card:hover { background: rgba(255, 255, 255, 0.03); }
+.chat-card.active { background: var(--accent-color); }
+
+.profile-avatar {
+  width: 52px; height: 52px; border-radius: 50%; background: linear-gradient(135deg, #6ab2f2, #4082bc);
+  display: flex; align-items: center; justify-content: center; font-weight: bold; color: white;
+}
+
+/* Chat Main Surface */
+.chat-surface { flex: 1; display: flex; flex-direction: column; background: var(--bg-main); position: relative; }
+.chat-bg {
+  position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+  background: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png');
+  opacity: 0.05; pointer-events: none; z-index: 0;
+}
+
+.header-bar {
+  height: 64px; padding: 0 25px; display: flex; align-items: center; justify-content: space-between;
+  background: var(--sidebar-bg); backdrop-filter: var(--glass); border-bottom: 1px solid var(--border-color); z-index: 1;
+}
+
+.messages-scroll { flex: 1; overflow-y: auto; padding: 25px; display: flex; flex-direction: column; gap: 12px; z-index: 1; }
+
+.msg-bubble {
+  max-width: 60%; padding: 10px 16px; border-radius: 18px; font-size: 15px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1); position: relative;
+}
+.msg-bubble.sent { align-self: flex-end; background: var(--msg-sent); border-bottom-right-radius: 4px; }
+.msg-bubble.received { align-self: flex-start; background: var(--msg-received); border-bottom-left-radius: 4px; }
+
+.action-bar {
+  padding: 15px 30px; background: var(--sidebar-bg); backdrop-filter: var(--glass);
+  display: flex; gap: 15px; align-items: center; border-top: 1px solid var(--border-color); z-index: 1;
+}
+.action-bar input { flex: 1; background: transparent; border: none; outline: none; color: var(--text-main); font-size: 16px; }
+
+/* Side Drawer (Burger Menu) */
+.side-drawer {
+  position: fixed; left: -320px; top: 0; width: 300px; height: 100%;
+  background: var(--sidebar-bg); backdrop-filter: blur(25px); z-index: 100;
+  transition: 0.4s cubic-bezier(0.4, 0, 0.2, 1); border-right: 1px solid var(--border-color);
+}
+.side-drawer.open { left: 0; }
+.drawer-item { padding: 15px 25px; cursor: pointer; display: flex; align-items: center; gap: 15px; border-radius: 0 25px 25px 0; margin-right: 10px; transition: 0.2s; }
+.drawer-item:hover { background: rgba(255,255,255,0.05); }
