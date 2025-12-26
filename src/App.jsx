@@ -82,7 +82,7 @@ export default function App() {
     scrollRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // 🔹 FIXED onSend FUNCTION WITH TOAST
+  // 🔹 SEND MESSAGE
   const onSend = async (e) => {
     e.preventDefault();
     if (!text.trim() || !selected) {
@@ -132,13 +132,17 @@ export default function App() {
       '--list-view': selected ? 'none' : 'flex', 
       '--chat-view': selected ? 'flex' : 'none'
     }}>
-      
+
       {/* 0. SIDE DRAWER */}
       <div className={`drawer-overlay ${drawerOpen ? 'open' : ''}`} onClick={() => setDrawerOpen(false)}></div>
       <div className={`drawer ${drawerOpen ? 'open' : ''}`}>
         <div className="drawer-header">
-          <div className="avatar" style={{width:64, height:64, fontSize:22}}>{user.email[0].toUpperCase()}</div>
-          <div style={{marginTop:15, fontWeight:'700', fontSize:18}}>{user.displayName || user.email}</div>
+          <div className="avatar" style={{width:64, height:64, fontSize:22}}>
+            {user.displayName ? user.displayName[0].toUpperCase() : user.email[0].toUpperCase()}
+          </div>
+          <div style={{marginTop:15, fontWeight:'700', fontSize:18}}>
+            {user.displayName || user.email}
+          </div>
           <div style={{fontSize:13, opacity:0.7}}>{user.email}</div>
         </div>
         <div style={{paddingTop:10}}>
@@ -180,7 +184,7 @@ export default function App() {
         <div className="chat-list">
           {users.filter(u => u.email.toLowerCase().includes(search.toLowerCase())).map(u => (
             <div key={u.id} className={`chat-card ${selected?.id === u.id ? 'active' : ''}`} onClick={() => setSelected(u)}>
-              <div className="avatar">{u.email[0].toUpperCase()}</div>
+              <div className="avatar">{u.displayName ? u.displayName[0].toUpperCase() : u.email[0].toUpperCase()}</div>
               <div style={{flex:1, overflow:'hidden'}}>
                 <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
                   <b style={{fontSize:'15px', whiteSpace:'nowrap'}}>{u.displayName || u.email.split('@')[0]}</b>
@@ -199,34 +203,29 @@ export default function App() {
       <div className="chat-surface">
         {selected ? (
           <>
-           <div className="header-bar">
-  {/* Chap qism */}
-  <div className="header-info">
-    <div className="back-btn" onClick={() => setSelected(null)}>⬅</div>
+            {/* HEADER */}
+            <div className="header-bar">
+              <div className="header-info">
+                <div className="back-btn" onClick={() => setSelected(null)}>⬅</div>
+                <div className="avatar">{selected.displayName ? selected.displayName[0].toUpperCase() : selected.email[0].toUpperCase()}</div>
+                <div className="user-info">
+                  <div className="user-name">{selected.displayName || selected.email}</div>
+                  <div className="user-status">online</div>
+                </div>
+              </div>
+              <div className="header-actions">
+                <button className="btn-premium" onClick={async () => {
+                  const n = prompt("Shaxsiy ismingizni kiriting:");
+                  if(n) {
+                    await updateDoc(doc(db, "users", selected.id), { displayName: n });
+                    setSelected(prev => ({ ...prev, displayName: n }));
+                    toast.success("Ism yangilandi!");
+                  }
+                }}>{t.save}</button>
+              </div>
+            </div>
 
-    <div className="avatar">
-      {selected.email[0].toUpperCase()}
-    </div>
-
-    <div className="user-info">
-      <div className="user-name">{selected.displayName || selected.email}</div>
-      <div className="user-status">online</div>
-    </div>
-  </div>
-
-  {/* O‘ng qism */}
-  <div className="header-actions">
-    <button className="btn-premium" onClick={() => {
-      const n = prompt("Edit name:");
-      if(n) {
-        updateDoc(doc(db, "users", selected.id), { displayName: n });
-        toast.success("Ism yangilandi!");
-      }
-    }}>{t.save}</button>
-  </div>
-</div>
-
-
+            {/* MESSAGES */}
             <div className="messages-box">
               {messages.map((m, i) => (
                 <div key={i} className={`bubble ${m.senderId === user.uid ? 'sent' : 'received'}`}>
@@ -236,6 +235,7 @@ export default function App() {
               <div ref={scrollRef} />
             </div>
 
+            {/* INPUT */}
             <form className="input-container" onSubmit={onSend}>
               <input value={text} onChange={e => setText(e.target.value)} placeholder="Write a message..." />
               <button type="submit" style={{color:'var(--accent)', background:'none', border:'none', fontWeight:'700', cursor:'pointer', fontSize:15}}>SEND</button>
@@ -243,8 +243,8 @@ export default function App() {
           </>
         ) : (
           <div style={{margin:'auto', opacity:0.3, textAlign:'center'}}>
-              <div style={{fontSize:60}}>💬</div>
-              <p style={{fontSize:18, marginTop:10}}>{t.start}</p>
+            <div style={{fontSize:60}}>💬</div>
+            <p style={{fontSize:18, marginTop:10}}>{t.start}</p>
           </div>
         )}
       </div>
@@ -265,10 +265,12 @@ export default function App() {
   );
 }
 
+// 🔹 AUTH UI
 function AuthUI({auth, db}) {
   const [isLog, setIsLog] = useState(true);
   const [email, setEmail] = useState("");
   const [pass, setPass] = useState("");
+  const [name, setName] = useState("");
 
   const handle = async (e) => {
     e.preventDefault();
@@ -281,6 +283,7 @@ function AuthUI({auth, db}) {
         await setDoc(doc(db, "users", r.user.uid), { 
           email: email, 
           id: r.user.uid,
+          displayName: name || email.split('@')[0],
           createdAt: serverTimestamp() 
         });
         toast.success("Hisob yaratildi!");
@@ -298,6 +301,7 @@ function AuthUI({auth, db}) {
         <form onSubmit={handle}>
           <input className="auth-input" type="email" placeholder="Email address" onChange={e => setEmail(e.target.value)} required />
           <input className="auth-input" type="password" placeholder="Password" onChange={e => setPass(e.target.value)} required />
+          {!isLog && <input className="auth-input" type="text" placeholder="Shaxsiy ismingiz" onChange={e => setName(e.target.value)} required />}
           <button className="auth-btn" type="submit">{isLog ? "Log In" : "Sign Up"}</button>
         </form>
         <p onClick={() => setIsLog(!isLog)} style={{marginTop:25, color:'#2481cc', cursor:'pointer', fontWeight:500}}>
