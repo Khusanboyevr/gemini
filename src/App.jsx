@@ -1,9 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { initializeApp } from "firebase/app";
-import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "firebase/auth";
-import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, setDoc, doc, updateDoc } from "firebase/firestore";
+import { 
+  getAuth, onAuthStateChanged, signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword, signOut 
+} from "firebase/auth";
+import { 
+  getFirestore, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, 
+  setDoc, doc, updateDoc, getDoc 
+} from "firebase/firestore";
 import './index.css';
 import { Icon } from "@iconify/react";
+
+// 🔹 Toast imports
+import { ToastContainer, toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
 // FIREBASE CONFIG
 const firebaseConfig = {
@@ -39,6 +49,7 @@ export default function App() {
   
   const scrollRef = useRef();
 
+  // AUTH & USERS
   useEffect(() => {
     const unsubAuth = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
@@ -56,6 +67,7 @@ export default function App() {
     return () => unsubAuth();
   }, []);
 
+  // MESSAGES LISTENER
   useEffect(() => {
     if (!selected || !user) return;
     const combinedId = [user.uid, selected.id].sort().join("_");
@@ -65,20 +77,50 @@ export default function App() {
     });
   }, [selected, user]);
 
+  // SCROLL TO BOTTOM
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  // 🔹 FIXED onSend FUNCTION WITH TOAST
   const onSend = async (e) => {
     e.preventDefault();
-    if (!text.trim() || !selected) return;
+    if (!text.trim() || !selected) {
+      toast.warn("Xabar bo‘sh bo‘lishi mumkin emas!");
+      return;
+    }
+
     const combinedId = [user.uid, selected.id].sort().join("_");
-    await addDoc(collection(db, "chats", combinedId, "messages"), {
-      text,
-      senderId: user.uid,
-      createdAt: serverTimestamp()
-    });
-    setText("");
+    const chatRef = doc(db, "chats", combinedId);
+    const chatSnap = await getDoc(chatRef);
+
+    try {
+      if (!chatSnap.exists()) {
+        await setDoc(chatRef, {
+          members: [user.uid, selected.id],
+          createdAt: serverTimestamp(),
+          lastMessage: text,
+          updatedAt: serverTimestamp(),
+        });
+        toast.success("Yangi chat yaratildi!");
+      } else {
+        await updateDoc(chatRef, {
+          lastMessage: text,
+          updatedAt: serverTimestamp(),
+        });
+      }
+
+      await addDoc(collection(chatRef, "messages"), {
+        text,
+        senderId: user.uid,
+        createdAt: serverTimestamp(),
+      });
+
+      setText("");
+      toast.success("Xabar yuborildi!");
+    } catch (err) {
+      toast.error("Xabar yuborishda xatolik: " + err.message);
+    }
   };
 
   if (!user) return <AuthUI auth={auth} db={db} />;
@@ -109,7 +151,7 @@ export default function App() {
           <div className="drawer-item" onClick={() => setLang(lang === 'uz' ? 'ru' : lang === 'ru' ? 'en' : 'uz')}>
             <Icon icon="subway:world-1" width="24" height="24" /> {t.lang}: {lang.toUpperCase()}
           </div>
-          <div className="drawer-item" onClick={() => signOut(auth)} style={{color:'#ff4d4d', marginTop:20}}>
+          <div className="drawer-item" onClick={() => { signOut(auth); toast.info("Chiqdingiz!"); }} style={{color:'#ff4d4d', marginTop:20}}>
             <Icon icon="ci:exit" width="24" height="24" /> {t.logout}
           </div>
         </div>
@@ -120,15 +162,16 @@ export default function App() {
         <div className="nav-btn" onClick={() => setDrawerOpen(true)} style={{fontSize: 24}}>☰</div>
         <div className="nav-btn active"><Icon icon="lucide:user-round" width="24" height="24" /></div>
         <div className="nav-btn"><Icon icon="ph:users-light" width="24" height="24" /></div>
-        <div className="nav-btn" onClick={() => signOut(auth)} style={{marginTop:'auto', color:'#ff4d4d'}}><Icon icon="ci:exit" width="24" height="24" /></div>
+        <div className="nav-btn" onClick={() => { signOut(auth); toast.info("Chiqdingiz!"); }} style={{marginTop:'auto', color:'#ff4d4d'}}>
+          <Icon icon="ci:exit" width="24" height="24" />
+        </div>
       </div>
 
       {/* 2. SIDEBAR USERS */}
       <div className="sidebar">
-        {/* MOBIL UCHUN TOP BAR */}
         <div className="mobile-top-bar">
           <div onClick={() => setDrawerOpen(true)} style={{fontSize: 24, cursor: 'pointer', marginRight: 15}}>☰</div>
-          <b style={{fontSize: 18}}>Telegram</b>
+          <b style={{fontSize: 18}}>Webgramm</b>
         </div>
 
         <div className="search-area">
@@ -156,22 +199,33 @@ export default function App() {
       <div className="chat-surface">
         {selected ? (
           <>
-            <div className="header-bar">
-              <div className="header-info">
-                <div className="back-btn" onClick={() => setSelected(null)}>⬅</div>
-                <div className="avatar" style={{width:42, height:42, fontSize:15}}>{selected.email[0].toUpperCase()}</div>
-                <div>
-                  <div style={{fontWeight:'700'}}>{selected.displayName || selected.email}</div>
-                  <div style={{fontSize:12, color:'var(--accent)'}}>online</div>
-                </div>
-              </div>
-              <div className="header-actions">
-                <button className="btn-premium" onClick={() => {
-                  const n = prompt("Edit name:");
-                  if(n) updateDoc(doc(db, "users", selected.id), { displayName: n });
-                }}>{t.save}</button>
-              </div>
-            </div>
+           <div className="header-bar">
+  {/* Chap qism */}
+  <div className="header-info">
+    <div className="back-btn" onClick={() => setSelected(null)}>⬅</div>
+
+    <div className="avatar">
+      {selected.email[0].toUpperCase()}
+    </div>
+
+    <div className="user-info">
+      <div className="user-name">{selected.displayName || selected.email}</div>
+      <div className="user-status">online</div>
+    </div>
+  </div>
+
+  {/* O‘ng qism */}
+  <div className="header-actions">
+    <button className="btn-premium" onClick={() => {
+      const n = prompt("Edit name:");
+      if(n) {
+        updateDoc(doc(db, "users", selected.id), { displayName: n });
+        toast.success("Ism yangilandi!");
+      }
+    }}>{t.save}</button>
+  </div>
+</div>
+
 
             <div className="messages-box">
               {messages.map((m, i) => (
@@ -194,6 +248,19 @@ export default function App() {
           </div>
         )}
       </div>
+
+      {/* 🔹 Toast container */}
+      <ToastContainer 
+        position="top-right"
+        autoClose={3000}
+        hideProgressBar={false}
+        newestOnTop={true}
+        closeOnClick
+        rtl={false}
+        pauseOnFocusLoss
+        draggable
+        pauseOnHover
+      />
     </div>
   );
 }
@@ -206,16 +273,21 @@ function AuthUI({auth, db}) {
   const handle = async (e) => {
     e.preventDefault();
     try {
-      if (isLog) await signInWithEmailAndPassword(auth, email, pass);
-      else {
+      if (isLog) {
+        await signInWithEmailAndPassword(auth, email, pass);
+        toast.success("Muvaffaqiyatli kirildi!");
+      } else {
         const r = await createUserWithEmailAndPassword(auth, email, pass);
         await setDoc(doc(db, "users", r.user.uid), { 
           email: email, 
           id: r.user.uid,
           createdAt: serverTimestamp() 
         });
+        toast.success("Hisob yaratildi!");
       }
-    } catch (e) { alert("Error: " + e.message); }
+    } catch (e) { 
+      toast.error("Xato: " + e.message); 
+    }
   };
 
   return (

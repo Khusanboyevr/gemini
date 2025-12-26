@@ -170,3 +170,69 @@ body {
   color: #fff; border: none; border-radius: 12px; 
   font-weight: 600; cursor: pointer; transition: 0.3s; 
 }
+.header-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 15px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-main);
+  color: var(--text);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+  backdrop-filter: var(--glass);
+}
+
+.header-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.back-btn {
+  cursor: pointer;
+  font-size: 20px;
+  color: var(--accent);
+}
+
+.avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background-color: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--text);
+}
+
+.user-info {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.1;
+}
+
+.user-name {
+  font-weight: 700;
+  color: var(--text);
+}
+
+.user-status {
+  font-size: 12px;
+  color: #22c55e; /* online rangini yashil qilib oldik */
+}
+
+.header-actions .btn-premium {
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: none;
+  background-color: var(--accent);
+  color: var(--text);
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.header-actions .btn-premium:hover {
+  filter: brightness(1.2);
+}
