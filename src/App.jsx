@@ -5,7 +5,6 @@ import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, serverTim
 import './index.css';
 import { Icon } from "@iconify/react";
 
-
 // FIREBASE CONFIG
 const firebaseConfig = {
   apiKey: "AIzaSyAjS9rgXTe55XVXCoFfbTPFtg3P0K9dfQs",
@@ -20,7 +19,6 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-// Tarjimalar ma'lumotlari
 const tData = {
   uz: { search: "Qidirish...", group: "Yangi guruh", night: "Tungi rejim", lang: "Til", logout: "Chiqish", save: "Saqlash", start: "Suhbatni boshlang" },
   ru: { search: "Поиск...", group: "Новая группа", night: "Ночной режим", lang: "Язык", logout: "Выйти", save: "Сохранить", start: "Выберите чат" },
@@ -35,14 +33,12 @@ export default function App() {
   const [text, setText] = useState("");
   const [search, setSearch] = useState("");
   
-  // Yangi qo'shilgan UI holatlari
   const [isDark, setIsDark] = useState(true);
   const [lang, setLang] = useState('uz');
   const [drawerOpen, setDrawerOpen] = useState(false);
   
   const scrollRef = useRef();
 
-  // AUTH & REAL-TIME USERS
   useEffect(() => {
     const unsubAuth = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
@@ -60,7 +56,6 @@ export default function App() {
     return () => unsubAuth();
   }, []);
 
-  // REAL-TIME MESSAGES
   useEffect(() => {
     if (!selected || !user) return;
     const combinedId = [user.uid, selected.id].sort().join("_");
@@ -70,7 +65,6 @@ export default function App() {
     });
   }, [selected, user]);
 
-  // AUTO SCROLL
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
@@ -89,16 +83,15 @@ export default function App() {
 
   if (!user) return <AuthUI auth={auth} db={db} />;
 
-  // Hozirgi tanlangan til
   const t = tData[lang];
 
   return (
     <div className={`app-container ${!isDark ? 'light-mode' : ''}`} style={{ 
       '--list-view': selected ? 'none' : 'flex', 
-      '--chat-view': selected ? 'flex' : 'none' 
+      '--chat-view': selected ? 'flex' : 'none'
     }}>
       
-      {/* 0. SIDE DRAWER (Burger menu ochilganda chiqadi) */}
+      {/* 0. SIDE DRAWER */}
       <div className={`drawer-overlay ${drawerOpen ? 'open' : ''}`} onClick={() => setDrawerOpen(false)}></div>
       <div className={`drawer ${drawerOpen ? 'open' : ''}`}>
         <div className="drawer-header">
@@ -107,9 +100,11 @@ export default function App() {
           <div style={{fontSize:13, opacity:0.7}}>{user.email}</div>
         </div>
         <div style={{paddingTop:10}}>
-          <div className="drawer-item" onClick={() => {/* Guruh ochish */}}><Icon icon="ph:users-light" width="24" height="24" /> {t.group}</div>
+          <div className="drawer-item" onClick={() => {}}>
+            <Icon icon="ph:users-light" width="24" height="24" /> {t.group}
+          </div>
           <div className="drawer-item" onClick={() => setIsDark(!isDark)}>
-            {isDark ? <Icon icon="line-md:light-dark-loop" width="24" height="24" /> : <Icon icon="line-md:light-dark-loop" width="24" height="24" />} {t.night}
+            <Icon icon={isDark ? "line-md:moon-to-sunny-outline-loop-transition" : "line-md:sunny-filled-loop-to-moon-filled-loop-transition"} width="24" height="24" /> {t.night}
           </div>
           <div className="drawer-item" onClick={() => setLang(lang === 'uz' ? 'ru' : lang === 'ru' ? 'en' : 'uz')}>
             <Icon icon="subway:world-1" width="24" height="24" /> {t.lang}: {lang.toUpperCase()}
@@ -122,7 +117,7 @@ export default function App() {
 
       {/* 1. LEFT NAVIGATION RAIL */}
       <div className="nav-rail">
-        <div className="nav-btn" onClick={() => setDrawerOpen(true)}>☰</div>
+        <div className="nav-btn" onClick={() => setDrawerOpen(true)} style={{fontSize: 24}}>☰</div>
         <div className="nav-btn active"><Icon icon="lucide:user-round" width="24" height="24" /></div>
         <div className="nav-btn"><Icon icon="ph:users-light" width="24" height="24" /></div>
         <div className="nav-btn" onClick={() => signOut(auth)} style={{marginTop:'auto', color:'#ff4d4d'}}><Icon icon="ci:exit" width="24" height="24" /></div>
@@ -130,6 +125,12 @@ export default function App() {
 
       {/* 2. SIDEBAR USERS */}
       <div className="sidebar">
+        {/* MOBIL UCHUN TOP BAR */}
+        <div className="mobile-top-bar">
+          <div onClick={() => setDrawerOpen(true)} style={{fontSize: 24, cursor: 'pointer', marginRight: 15}}>☰</div>
+          <b style={{fontSize: 18}}>Telegram</b>
+        </div>
+
         <div className="search-area">
           <input className="search-input" placeholder={t.search} onChange={e => setSearch(e.target.value)} />
         </div>
@@ -197,7 +198,6 @@ export default function App() {
   );
 }
 
-// AUTHENTICATION UI
 function AuthUI({auth, db}) {
   const [isLog, setIsLog] = useState(true);
   const [email, setEmail] = useState("");
