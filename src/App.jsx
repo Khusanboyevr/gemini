@@ -2,11 +2,11 @@ import React, { useState, useEffect, useRef } from 'react';
 import { initializeApp } from "firebase/app";
 import { 
   getAuth, onAuthStateChanged, signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword, signOut 
+  createUserWithEmailAndPassword, signOut, updateProfile 
 } from "firebase/auth";
 import { 
   getFirestore, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, 
-  setDoc, doc, updateDoc, getDoc 
+  setDoc, doc, updateDoc, getDoc, deleteDoc 
 } from "firebase/firestore";
 import './index.css';
 import { Icon } from "@iconify/react";
@@ -30,9 +30,9 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 
 const tData = {
-  uz: { search: "Qidirish...", night: "Tungi rejim", lang: "Til", logout: "Chiqish", save: "O'zgartirish", start: "Suhbatni boshlang", global: "Global Guruh" },
-  ru: { search: "Поиск...", night: "Ночной режим", lang: "Язык", logout: "Выйти", save: "Изменить", start: "Выберите чаat", global: "Общий чат" },
-  en: { search: "Search...", night: "Night Mode", lang: "Language", logout: "Logout", save: "Edit Profile", start: "Select a chat", global: "Global Group" }
+  uz: { search: "Qidirish...", night: "Tungi rejim", lang: "Til", logout: "Chiqish", save: "O'zgartirish", start: "Suhbatni boshlang", global: "Global Guruh", edit: "Tahrirlash", delete: "O'chirish" },
+  ru: { search: "Поиск...", night: "Ночной режим", lang: "Язык", logout: "Выйти", save: "Изменить", start: "Выберите чат", global: "Общий чат", edit: "Изменить", delete: "Удалить" },
+  en: { search: "Search...", night: "Night Mode", lang: "Language", logout: "Logout", save: "Edit Profile", start: "Select a chat", global: "Global Group", edit: "Edit", delete: "Delete" }
 };
 
 export default function App() {
@@ -45,10 +45,10 @@ export default function App() {
   const [isDark, setIsDark] = useState(true);
   const [lang, setLang] = useState('uz');
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [editMsg, setEditMsg] = useState(null);
   
   const scrollRef = useRef();
 
-  // 1. Foydalanuvchi holati va ro'yxatini kuzatish
   useEffect(() => {
     const unsubAuth = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
@@ -66,7 +66,6 @@ export default function App() {
     return () => unsubAuth();
   }, []);
 
-  // 2. Xabarlarni real-vaqtda olish (Guruh yoki Shaxsiy)
   useEffect(() => {
     if (!selected || !user) return;
     
@@ -83,44 +82,69 @@ export default function App() {
     });
   }, [selected, user]);
 
-  // 3. Avtomatik pastga tushish
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // 4. Xabar yuborish mantiqi
+  const onDelete = async (msgId) => {
+    if (!window.confirm("Xabarni o'chirmoqchimisiz?")) return;
+    try {
+      if (selected.id === 'global_chat') {
+        await deleteDoc(doc(db, "global_messages", msgId));
+      } else {
+        const combinedId = [user.uid, selected.id].sort().join("_");
+        await deleteDoc(doc(db, "chats", combinedId, "messages", msgId));
+      }
+      toast.info("Xabar o'chirildi");
+    } catch (err) {
+      toast.error(err.message);
+    }
+  };
+
   const onSend = async (e) => {
     e.preventDefault();
     if (!text.trim() || !selected) return;
 
-    const msgData = {
-      text,
-      senderId: user.uid,
-      senderName: user.displayName || user.email.split('@')[0],
-      createdAt: serverTimestamp(),
-    };
-
     try {
-      if (selected.id === 'global_chat') {
-        await addDoc(collection(db, "global_messages"), msgData);
-      } else {
-        const combinedId = [user.uid, selected.id].sort().join("_");
-        const chatRef = doc(db, "chats", combinedId);
-        
-        const chatSnap = await getDoc(chatRef);
-        if (!chatSnap.exists()) {
-          await setDoc(chatRef, {
-            members: [user.uid, selected.id],
-            lastMessage: text,
-            updatedAt: serverTimestamp(),
-          });
+      if (editMsg) {
+        let docRef;
+        if (selected.id === 'global_chat') {
+          docRef = doc(db, "global_messages", editMsg.id);
         } else {
-          await updateDoc(chatRef, {
-            lastMessage: text,
-            updatedAt: serverTimestamp(),
-          });
+          const combinedId = [user.uid, selected.id].sort().join("_");
+          docRef = doc(db, "chats", combinedId, "messages", editMsg.id);
         }
-        await addDoc(collection(chatRef, "messages"), msgData);
+        await updateDoc(docRef, { text: text, isEdited: true });
+        setEditMsg(null);
+      } else {
+        const msgData = {
+          text,
+          senderId: user.uid,
+          senderName: user.displayName || user.email.split('@')[0],
+          createdAt: serverTimestamp(),
+        };
+
+        if (selected.id === 'global_chat') {
+          await addDoc(collection(db, "global_messages"), msgData);
+        } else {
+          const combinedId = [user.uid, selected.id].sort().join("_");
+          const chatRef = doc(db, "chats", combinedId);
+          
+          const chatSnap = await getDoc(chatRef);
+          if (!chatSnap.exists()) {
+            await setDoc(chatRef, {
+              members: [user.uid, selected.id],
+              lastMessage: text,
+              updatedAt: serverTimestamp(),
+            });
+          } else {
+            await updateDoc(chatRef, {
+              lastMessage: text,
+              updatedAt: serverTimestamp(),
+            });
+          }
+          await addDoc(collection(chatRef, "messages"), msgData);
+        }
       }
       setText("");
     } catch (err) {
@@ -137,7 +161,6 @@ export default function App() {
       '--chat-view': selected ? 'flex' : 'none'
     }}>
 
-      {/* SIDE DRAWER */}
       <div className={`drawer-overlay ${drawerOpen ? 'open' : ''}`} onClick={() => setDrawerOpen(false)}></div>
       <div className={`drawer ${drawerOpen ? 'open' : ''}`}>
         <div className="drawer-header">
@@ -151,7 +174,7 @@ export default function App() {
         </div>
         <div style={{padding: '10px 0'}}>
           <div className="drawer-item" onClick={() => setIsDark(!isDark)}>
-            <Icon icon={isDark ? "line-md:moon-to-sunny-outline-loop-transition" : "line-md:sunny-filled-loop-to-moon-filled-loop-transition"} width="24" /> 
+            <Icon icon={isDark ? "solar:sun-linear" : "solar:moon-linear"} width="24" /> 
             <span>{t.night}</span>
           </div>
           <div className="drawer-item" onClick={() => setLang(lang === 'uz' ? 'ru' : lang === 'ru' ? 'en' : 'uz')}>
@@ -165,17 +188,14 @@ export default function App() {
         </div>
       </div>
 
-      {/* NAVIGATION RAIL */}
       <div className="nav-rail">
         <div className="nav-btn" onClick={() => setDrawerOpen(true)}><Icon icon="solar:hamburger-menu-linear" width="26" /></div>
         <div className="nav-btn active"><Icon icon="solar:chat-round-line-linear" width="26" /></div>
-        <div className="nav-btn"><Icon icon="solar:users-group-rounded-linear" width="26" /></div>
         <div className="nav-btn" style={{marginTop:'auto'}} onClick={() => setIsDark(!isDark)}>
             <Icon icon={isDark ? "solar:sun-linear" : "solar:moon-linear"} width="26" />
         </div>
       </div>
 
-      {/* SIDEBAR */}
       <div className="sidebar">
         <div className="mobile-top-bar">
           <Icon icon="solar:hamburger-menu-linear" width="24" onClick={() => setDrawerOpen(true)} />
@@ -185,7 +205,6 @@ export default function App() {
           <input className="search-input" placeholder={t.search} onChange={e => setSearch(e.target.value)} />
         </div>
         <div className="chat-list">
-          {/* Global Group Card */}
           <div className={`chat-card ${selected?.id === 'global_chat' ? 'active' : ''}`} 
                onClick={() => setSelected({ id: 'global_chat', displayName: t.global })}>
             <div className="avatar" style={{background: 'linear-gradient(135deg, #f59e0b, #d97706)'}}>
@@ -199,7 +218,6 @@ export default function App() {
           
           <hr style={{border:'none', borderTop:'1px solid var(--border)', margin:'10px 20px'}} />
 
-          {/* User Cards */}
           {users.filter(u => u.email.toLowerCase().includes(search.toLowerCase()) || (u.displayName && u.displayName.toLowerCase().includes(search.toLowerCase()))).map(u => (
             <div key={u.id} className={`chat-card ${selected?.id === u.id ? 'active' : ''}`} onClick={() => setSelected(u)}>
               <div className="avatar">{u.displayName ? u.displayName[0].toUpperCase() : u.email[0].toUpperCase()}</div>
@@ -217,7 +235,6 @@ export default function App() {
         </div>
       </div>
 
-      {/* CHAT SURFACE */}
       <div className="chat-surface">
         {selected ? (
           <>
@@ -253,16 +270,37 @@ export default function App() {
                       {m.senderName}
                     </div>
                   )}
-                  {m.text}
+                  <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                    <span>{m.text}</span>
+                    {m.senderId === user.uid && (
+                      <div className="msg-actions" style={{display:'flex', gap: '5px', marginLeft: '10px', opacity: 0.5}}>
+                        <Icon icon="solar:pen-linear" onClick={() => { setEditMsg(m); setText(m.text); }} style={{cursor:'pointer'}} width="14" />
+                        <Icon icon="solar:trash-bin-minimalistic-linear" onClick={() => onDelete(m.id)} style={{cursor:'pointer'}} width="14" />
+                      </div>
+                    )}
+                  </div>
+                  {m.isEdited && <div style={{fontSize:'9px', opacity:0.5, textAlign:'right', marginTop:2}}>tahrirlandi</div>}
                 </div>
               ))}
               <div ref={scrollRef} />
             </div>
 
-            <form className="input-container" onSubmit={onSend}>
+            <form className="input-container" onSubmit={onSend} style={{position:'relative'}}>
+              {editMsg && (
+                <div className="edit-panel" style={{position:'absolute', top: '-40px', left: 0, right: 0, background: 'var(--bg)', padding: '5px 20px', display:'flex', alignItems:'center', justifyContent:'space-between', borderTop: '1px solid var(--border)', zIndex: 10}}>
+                  <div style={{display:'flex', alignItems:'center', gap:'10px'}}>
+                    <Icon icon="solar:pen-linear" color="var(--accent)" />
+                    <div style={{fontSize:'12px'}}>
+                      <div style={{color:'var(--accent)', fontWeight:'bold'}}>{t.edit}</div>
+                      <div style={{opacity:0.6}}>{editMsg.text.substring(0, 20)}...</div>
+                    </div>
+                  </div>
+                  <Icon icon="ic:round-close" onClick={() => {setEditMsg(null); setText("");}} style={{cursor:'pointer'}} />
+                </div>
+              )}
               <input value={text} onChange={e => setText(e.target.value)} placeholder="Xabar yozing..." />
               <button type="submit" className="send-btn">
-                <Icon icon="solar:plain-2-bold" width="24" />
+                <Icon icon={editMsg ? "solar:check-read-bold" : "solar:plain-2-bold"} width="24" />
               </button>
             </form>
           </>
@@ -273,7 +311,6 @@ export default function App() {
           </div>
         )}
       </div>
-
       <ToastContainer position="bottom-center" theme={isDark ? "dark" : "light"} />
     </div>
   );
@@ -284,37 +321,54 @@ function AuthUI({auth, db}) {
   const [email, setEmail] = useState("");
   const [pass, setPass] = useState("");
   const [name, setName] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const handle = async (e) => {
     e.preventDefault();
+    if (loading) return;
+    setLoading(true);
+
     try {
       if (isLog) {
         await signInWithEmailAndPassword(auth, email, pass);
+        toast.success("Xush kelibsiz!");
       } else {
         const r = await createUserWithEmailAndPassword(auth, email, pass);
+        // DisplayName'ni Auth tizimida yangilash
+        await updateProfile(r.user, { 
+          displayName: name || email.split('@')[0] 
+        });
+        // Firestore'ga foydalanuvchi ma'lumotlarini qo'shish
         await setDoc(doc(db, "users", r.user.uid), { 
           email: email, 
           id: r.user.uid,
           displayName: name || email.split('@')[0],
           createdAt: serverTimestamp() 
         });
+        toast.success("Ro'yxatdan o'tish yakunlandi!");
       }
-    } catch (e) { toast.error(e.message); }
+    } catch (e) {
+      toast.error(e.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <div className="auth-wrapper">
       <div className="auth-card">
         <Icon icon="logos:telegram" width="80" style={{marginBottom:20}} />
-        <h2 style={{marginBottom:20}}>{isLog ? "Xush kelibsiz" : "Ro'yxatdan o'ting"}</h2>
+        <h2 style={{marginBottom:20}}>{isLog ? "Kirish" : "Ro'yxatdan o'tish"}</h2>
         <form onSubmit={handle}>
-          {!isLog && <input className="auth-input" type="text" placeholder="Ismingiz" onChange={e => setName(e.target.value)} required />}
-          <input className="auth-input" type="email" placeholder="Email" onChange={e => setEmail(e.target.value)} required />
-          <input className="auth-input" type="password" placeholder="Parol" onChange={e => setPass(e.target.value)} required />
-          <button className="auth-btn" type="submit">{isLog ? "Kirish" : "Ro'yxatdan o'tish"}</button>
+          {!isLog && <input className="auth-input" type="text" placeholder="Ismingiz" value={name} onChange={e => setName(e.target.value)} required />}
+          <input className="auth-input" type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} required />
+          <input className="auth-input" type="password" placeholder="Parol" value={pass} onChange={e => setPass(e.target.value)} required />
+          <button className="auth-btn" type="submit" disabled={loading}>
+            {loading ? "Yuklanmoqda..." : (isLog ? "Kirish" : "Ro'yxatdan o'tish")}
+          </button>
         </form>
-        <p onClick={() => setIsLog(!isLog)} style={{marginTop:20, color:'var(--accent)', cursor:'pointer'}}>
-          {isLog ? "Hisobingiz yo'qmi? Ochish" : "Hisobingiz bormi? Kirish"}
+        <p onClick={() => { setIsLog(!isLog); setName(""); }} style={{marginTop:20, color:'var(--accent)', cursor:'pointer'}}>
+          {isLog ? "Hisob ochish" : "Kirishga qaytish"}
         </p>
       </div>
     </div>
