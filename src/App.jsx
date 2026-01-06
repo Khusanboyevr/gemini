@@ -11,7 +11,7 @@ import {
 import './index.css';
 import { Icon } from "@iconify/react";
 
-// 🔹 Toast imports
+// Toast notifications
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
@@ -30,9 +30,9 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 
 const tData = {
-  uz: { search: "Qidirish...", group: "Yangi guruh", night: "Tungi rejim", lang: "Til", logout: "Chiqish", save: "Saqlash", start: "Suhbatni boshlang" },
-  ru: { search: "Поиск...", group: "Новая группа", night: "Ночной режим", lang: "Язык", logout: "Выйти", save: "Сохранить", start: "Выберите чат" },
-  en: { search: "Search...", group: "New Group", night: "Night Mode", lang: "Language", logout: "Logout", save: "Save", start: "Select a chat" }
+  uz: { search: "Qidirish...", night: "Tungi rejim", lang: "Til", logout: "Chiqish", save: "O'zgartirish", start: "Suhbatni boshlang", global: "Global Guruh" },
+  ru: { search: "Поиск...", night: "Ночной режим", lang: "Язык", logout: "Выйти", save: "Изменить", start: "Выберите чаat", global: "Общий чат" },
+  en: { search: "Search...", night: "Night Mode", lang: "Language", logout: "Logout", save: "Edit Profile", start: "Select a chat", global: "Global Group" }
 };
 
 export default function App() {
@@ -42,14 +42,13 @@ export default function App() {
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState("");
   const [search, setSearch] = useState("");
-  
   const [isDark, setIsDark] = useState(true);
   const [lang, setLang] = useState('uz');
   const [drawerOpen, setDrawerOpen] = useState(false);
   
   const scrollRef = useRef();
 
-  // AUTH & USERS
+  // 1. Foydalanuvchi holati va ro'yxatini kuzatish
   useEffect(() => {
     const unsubAuth = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
@@ -67,64 +66,69 @@ export default function App() {
     return () => unsubAuth();
   }, []);
 
-  // MESSAGES LISTENER
+  // 2. Xabarlarni real-vaqtda olish (Guruh yoki Shaxsiy)
   useEffect(() => {
     if (!selected || !user) return;
-    const combinedId = [user.uid, selected.id].sort().join("_");
-    const qMsgs = query(collection(db, "chats", combinedId, "messages"), orderBy("createdAt", "asc"));
+    
+    let qMsgs;
+    if (selected.id === 'global_chat') {
+      qMsgs = query(collection(db, "global_messages"), orderBy("createdAt", "asc"));
+    } else {
+      const combinedId = [user.uid, selected.id].sort().join("_");
+      qMsgs = query(collection(db, "chats", combinedId, "messages"), orderBy("createdAt", "asc"));
+    }
+
     return onSnapshot(qMsgs, (snapshot) => {
-      setMessages(snapshot.docs.map(d => d.data()));
+      setMessages(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
     });
   }, [selected, user]);
 
-  // SCROLL TO BOTTOM
+  // 3. Avtomatik pastga tushish
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // 🔹 SEND MESSAGE
+  // 4. Xabar yuborish mantiqi
   const onSend = async (e) => {
     e.preventDefault();
-    if (!text.trim() || !selected) {
-      toast.warn("Xabar bo‘sh bo‘lishi mumkin emas!");
-      return;
-    }
+    if (!text.trim() || !selected) return;
 
-    const combinedId = [user.uid, selected.id].sort().join("_");
-    const chatRef = doc(db, "chats", combinedId);
-    const chatSnap = await getDoc(chatRef);
+    const msgData = {
+      text,
+      senderId: user.uid,
+      senderName: user.displayName || user.email.split('@')[0],
+      createdAt: serverTimestamp(),
+    };
 
     try {
-      if (!chatSnap.exists()) {
-        await setDoc(chatRef, {
-          members: [user.uid, selected.id],
-          createdAt: serverTimestamp(),
-          lastMessage: text,
-          updatedAt: serverTimestamp(),
-        });
-        toast.success("Yangi chat yaratildi!");
+      if (selected.id === 'global_chat') {
+        await addDoc(collection(db, "global_messages"), msgData);
       } else {
-        await updateDoc(chatRef, {
-          lastMessage: text,
-          updatedAt: serverTimestamp(),
-        });
+        const combinedId = [user.uid, selected.id].sort().join("_");
+        const chatRef = doc(db, "chats", combinedId);
+        
+        const chatSnap = await getDoc(chatRef);
+        if (!chatSnap.exists()) {
+          await setDoc(chatRef, {
+            members: [user.uid, selected.id],
+            lastMessage: text,
+            updatedAt: serverTimestamp(),
+          });
+        } else {
+          await updateDoc(chatRef, {
+            lastMessage: text,
+            updatedAt: serverTimestamp(),
+          });
+        }
+        await addDoc(collection(chatRef, "messages"), msgData);
       }
-
-      await addDoc(collection(chatRef, "messages"), {
-        text,
-        senderId: user.uid,
-        createdAt: serverTimestamp(),
-      });
-
       setText("");
-      toast.success("Xabar yuborildi!");
     } catch (err) {
-      toast.error("Xabar yuborishda xatolik: " + err.message);
+      toast.error("Xato: " + err.message);
     }
   };
 
   if (!user) return <AuthUI auth={auth} db={db} />;
-
   const t = tData[lang];
 
   return (
@@ -133,65 +137,79 @@ export default function App() {
       '--chat-view': selected ? 'flex' : 'none'
     }}>
 
-      {/* 0. SIDE DRAWER */}
+      {/* SIDE DRAWER */}
       <div className={`drawer-overlay ${drawerOpen ? 'open' : ''}`} onClick={() => setDrawerOpen(false)}></div>
       <div className={`drawer ${drawerOpen ? 'open' : ''}`}>
         <div className="drawer-header">
-          <div className="avatar" style={{width:64, height:64, fontSize:22}}>
+          <div className="avatar" style={{width:60, height:60, fontSize:22}}>
             {user.displayName ? user.displayName[0].toUpperCase() : user.email[0].toUpperCase()}
           </div>
-          <div style={{marginTop:15, fontWeight:'700', fontSize:18}}>
-            {user.displayName || user.email}
+          <div style={{marginTop:15, fontWeight:'700', fontSize:18, color:'var(--text)'}}>
+            {user.displayName || user.email.split('@')[0]}
           </div>
-          <div style={{fontSize:13, opacity:0.7}}>{user.email}</div>
+          <div style={{fontSize:13, color:'var(--text-dim)'}}>{user.email}</div>
         </div>
-        <div style={{paddingTop:10}}>
-          <div className="drawer-item" onClick={() => {}}>
-            <Icon icon="ph:users-light" width="24" height="24" /> {t.group}
-          </div>
+        <div style={{padding: '10px 0'}}>
           <div className="drawer-item" onClick={() => setIsDark(!isDark)}>
-            <Icon icon={isDark ? "line-md:moon-to-sunny-outline-loop-transition" : "line-md:sunny-filled-loop-to-moon-filled-loop-transition"} width="24" height="24" /> {t.night}
+            <Icon icon={isDark ? "line-md:moon-to-sunny-outline-loop-transition" : "line-md:sunny-filled-loop-to-moon-filled-loop-transition"} width="24" /> 
+            <span>{t.night}</span>
           </div>
           <div className="drawer-item" onClick={() => setLang(lang === 'uz' ? 'ru' : lang === 'ru' ? 'en' : 'uz')}>
-            <Icon icon="subway:world-1" width="24" height="24" /> {t.lang}: {lang.toUpperCase()}
+            <Icon icon="subway:world-1" width="24" /> 
+            <span>{t.lang}: {lang.toUpperCase()}</span>
           </div>
-          <div className="drawer-item" onClick={() => { signOut(auth); toast.info("Chiqdingiz!"); }} style={{color:'#ff4d4d', marginTop:20}}>
-            <Icon icon="ci:exit" width="24" height="24" /> {t.logout}
+          <div className="drawer-item" onClick={() => { signOut(auth); toast.info("Chiqildi"); }} style={{color:'#ff4d4d'}}>
+            <Icon icon="ci:exit" width="24" /> 
+            <span>{t.logout}</span>
           </div>
         </div>
       </div>
 
-      {/* 1. LEFT NAVIGATION RAIL */}
+      {/* NAVIGATION RAIL */}
       <div className="nav-rail">
-        <div className="nav-btn" onClick={() => setDrawerOpen(true)} style={{fontSize: 24}}>☰</div>
-        <div className="nav-btn active"><Icon icon="lucide:user-round" width="24" height="24" /></div>
-        <div className="nav-btn"><Icon icon="ph:users-light" width="24" height="24" /></div>
-        <div className="nav-btn" onClick={() => { signOut(auth); toast.info("Chiqdingiz!"); }} style={{marginTop:'auto', color:'#ff4d4d'}}>
-          <Icon icon="ci:exit" width="24" height="24" />
+        <div className="nav-btn" onClick={() => setDrawerOpen(true)}><Icon icon="solar:hamburger-menu-linear" width="26" /></div>
+        <div className="nav-btn active"><Icon icon="solar:chat-round-line-linear" width="26" /></div>
+        <div className="nav-btn"><Icon icon="solar:users-group-rounded-linear" width="26" /></div>
+        <div className="nav-btn" style={{marginTop:'auto'}} onClick={() => setIsDark(!isDark)}>
+            <Icon icon={isDark ? "solar:sun-linear" : "solar:moon-linear"} width="26" />
         </div>
       </div>
 
-      {/* 2. SIDEBAR USERS */}
+      {/* SIDEBAR */}
       <div className="sidebar">
         <div className="mobile-top-bar">
-          <div onClick={() => setDrawerOpen(true)} style={{fontSize: 24, cursor: 'pointer', marginRight: 15}}>☰</div>
-          <b style={{fontSize: 18}}>Webgramm</b>
+          <Icon icon="solar:hamburger-menu-linear" width="24" onClick={() => setDrawerOpen(true)} />
+          <b style={{marginLeft: 15}}>Webgram</b>
         </div>
-
         <div className="search-area">
           <input className="search-input" placeholder={t.search} onChange={e => setSearch(e.target.value)} />
         </div>
         <div className="chat-list">
-          {users.filter(u => u.email.toLowerCase().includes(search.toLowerCase())).map(u => (
+          {/* Global Group Card */}
+          <div className={`chat-card ${selected?.id === 'global_chat' ? 'active' : ''}`} 
+               onClick={() => setSelected({ id: 'global_chat', displayName: t.global })}>
+            <div className="avatar" style={{background: 'linear-gradient(135deg, #f59e0b, #d97706)'}}>
+              <Icon icon="solar:global-linear" width="24" />
+            </div>
+            <div style={{flex:1}}>
+              <b className="user-name-list">{t.global}</b>
+              <div style={{fontSize:'12px', opacity:0.6}}>Hamma foydalanuvchilar</div>
+            </div>
+          </div>
+          
+          <hr style={{border:'none', borderTop:'1px solid var(--border)', margin:'10px 20px'}} />
+
+          {/* User Cards */}
+          {users.filter(u => u.email.toLowerCase().includes(search.toLowerCase()) || (u.displayName && u.displayName.toLowerCase().includes(search.toLowerCase()))).map(u => (
             <div key={u.id} className={`chat-card ${selected?.id === u.id ? 'active' : ''}`} onClick={() => setSelected(u)}>
               <div className="avatar">{u.displayName ? u.displayName[0].toUpperCase() : u.email[0].toUpperCase()}</div>
               <div style={{flex:1, overflow:'hidden'}}>
-                <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-                  <b style={{fontSize:'15px', whiteSpace:'nowrap'}}>{u.displayName || u.email.split('@')[0]}</b>
-                  <small style={{opacity:0.5}}>12:45</small>
+                <div style={{display:'flex', justifyContent:'space-between'}}>
+                  <b className="user-name-list">{u.displayName || u.email.split('@')[0]}</b>
+                  <small style={{opacity:0.5}}>bugun</small>
                 </div>
-                <div style={{fontSize:'13px', opacity:0.6, marginTop:'4px', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis'}}>
-                  Tap to start chat
+                <div style={{fontSize:'13px', opacity:0.6, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis'}}>
+                  {u.lastMessage || "Suhbatni boshlash..."}
                 </div>
               </div>
             </div>
@@ -199,73 +217,68 @@ export default function App() {
         </div>
       </div>
 
-      {/* 3. CHAT INTERFACE */}
+      {/* CHAT SURFACE */}
       <div className="chat-surface">
         {selected ? (
           <>
-            {/* HEADER */}
             <div className="header-bar">
-              <div className="header-info">
-                <div className="back-btn" onClick={() => setSelected(null)}>⬅</div>
-                <div className="avatar">{selected.displayName ? selected.displayName[0].toUpperCase() : selected.email[0].toUpperCase()}</div>
-                <div className="user-info">
-                  <div className="user-name">{selected.displayName || selected.email}</div>
-                  <div className="user-status">online</div>
+              <div className="header-left">
+                <div className="back-btn" onClick={() => setSelected(null)}>
+                    <Icon icon="solar:alt-arrow-left-linear" width="28" />
+                </div>
+                <div className="avatar">
+                    {selected.id === 'global_chat' ? <Icon icon="solar:global-linear" /> : (selected.displayName ? selected.displayName[0].toUpperCase() : selected.email[0].toUpperCase())}
+                </div>
+                <div className="header-info">
+                  <div className="user-name">{selected.displayName}</div>
+                  <div className="user-status">{selected.id === 'global_chat' ? 'Ommaviy guruh' : 'online'}</div>
                 </div>
               </div>
               <div className="header-actions">
                 <button className="btn-premium" onClick={async () => {
-                  const n = prompt("Shaxsiy ismingizni kiriting:");
+                  const n = prompt("Ismingizni yangilang:");
                   if(n) {
-                    await updateDoc(doc(db, "users", selected.id), { displayName: n });
-                    setSelected(prev => ({ ...prev, displayName: n }));
-                    toast.success("Ism yangilandi!");
+                    await updateDoc(doc(db, "users", auth.currentUser.uid), { displayName: n });
+                    toast.success("Yangilandi!");
                   }
                 }}>{t.save}</button>
               </div>
             </div>
 
-            {/* MESSAGES */}
             <div className="messages-box">
               {messages.map((m, i) => (
                 <div key={i} className={`bubble ${m.senderId === user.uid ? 'sent' : 'received'}`}>
+                  {selected.id === 'global_chat' && m.senderId !== user.uid && (
+                    <div style={{fontSize: '11px', fontWeight: '700', color: 'var(--accent)', marginBottom: '3px'}}>
+                      {m.senderName}
+                    </div>
+                  )}
                   {m.text}
                 </div>
               ))}
               <div ref={scrollRef} />
             </div>
 
-            {/* INPUT */}
             <form className="input-container" onSubmit={onSend}>
-              <input value={text} onChange={e => setText(e.target.value)} placeholder="Write a message..." />
-              <button type="submit" style={{color:'var(--accent)', background:'none', border:'none', fontWeight:'700', cursor:'pointer', fontSize:15}}>SEND</button>
+              <input value={text} onChange={e => setText(e.target.value)} placeholder="Xabar yozing..." />
+              <button type="submit" className="send-btn">
+                <Icon icon="solar:plain-2-bold" width="24" />
+              </button>
             </form>
           </>
         ) : (
           <div style={{margin:'auto', opacity:0.3, textAlign:'center'}}>
-            <div style={{fontSize:60}}>💬</div>
+            <Icon icon="solar:chat-round-dots-linear" width="80" />
             <p style={{fontSize:18, marginTop:10}}>{t.start}</p>
           </div>
         )}
       </div>
 
-      {/* 🔹 Toast container */}
-      <ToastContainer 
-        position="top-right"
-        autoClose={3000}
-        hideProgressBar={false}
-        newestOnTop={true}
-        closeOnClick
-        rtl={false}
-        pauseOnFocusLoss
-        draggable
-        pauseOnHover
-      />
+      <ToastContainer position="bottom-center" theme={isDark ? "dark" : "light"} />
     </div>
   );
 }
 
-// 🔹 AUTH UI
 function AuthUI({auth, db}) {
   const [isLog, setIsLog] = useState(true);
   const [email, setEmail] = useState("");
@@ -277,7 +290,6 @@ function AuthUI({auth, db}) {
     try {
       if (isLog) {
         await signInWithEmailAndPassword(auth, email, pass);
-        toast.success("Muvaffaqiyatli kirildi!");
       } else {
         const r = await createUserWithEmailAndPassword(auth, email, pass);
         await setDoc(doc(db, "users", r.user.uid), { 
@@ -286,26 +298,23 @@ function AuthUI({auth, db}) {
           displayName: name || email.split('@')[0],
           createdAt: serverTimestamp() 
         });
-        toast.success("Hisob yaratildi!");
       }
-    } catch (e) { 
-      toast.error("Xato: " + e.message); 
-    }
+    } catch (e) { toast.error(e.message); }
   };
 
   return (
     <div className="auth-wrapper">
       <div className="auth-card">
-        <img src="https://upload.wikimedia.org/wikipedia/commons/8/82/Telegram_logo.svg" width="90" style={{marginBottom:30}} alt="TG" />
-        <h2 style={{marginBottom:20}}>{isLog ? "Welcome Back" : "Create Account"}</h2>
+        <Icon icon="logos:telegram" width="80" style={{marginBottom:20}} />
+        <h2 style={{marginBottom:20}}>{isLog ? "Xush kelibsiz" : "Ro'yxatdan o'ting"}</h2>
         <form onSubmit={handle}>
-          <input className="auth-input" type="email" placeholder="Email address" onChange={e => setEmail(e.target.value)} required />
-          <input className="auth-input" type="password" placeholder="Password" onChange={e => setPass(e.target.value)} required />
-          {!isLog && <input className="auth-input" type="text" placeholder="Shaxsiy ismingiz" onChange={e => setName(e.target.value)} required />}
-          <button className="auth-btn" type="submit">{isLog ? "Log In" : "Sign Up"}</button>
+          {!isLog && <input className="auth-input" type="text" placeholder="Ismingiz" onChange={e => setName(e.target.value)} required />}
+          <input className="auth-input" type="email" placeholder="Email" onChange={e => setEmail(e.target.value)} required />
+          <input className="auth-input" type="password" placeholder="Parol" onChange={e => setPass(e.target.value)} required />
+          <button className="auth-btn" type="submit">{isLog ? "Kirish" : "Ro'yxatdan o'tish"}</button>
         </form>
-        <p onClick={() => setIsLog(!isLog)} style={{marginTop:25, color:'#2481cc', cursor:'pointer', fontWeight:500}}>
-          {isLog ? "Don't have an account? Sign Up" : "Already have an account? Log In"}
+        <p onClick={() => setIsLog(!isLog)} style={{marginTop:20, color:'var(--accent)', cursor:'pointer'}}>
+          {isLog ? "Hisobingiz yo'qmi? Ochish" : "Hisobingiz bormi? Kirish"}
         </p>
       </div>
     </div>
