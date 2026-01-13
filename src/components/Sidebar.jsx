@@ -8,6 +8,7 @@ export default function Sidebar({ currentUser, users, selected, setSelected, isM
     const [search, setSearch] = useState("");
     const [tab, setTab] = useState("all");
     const [showSettings, setShowSettings] = useState(false);
+    const [mobileSearchActive, setMobileSearchActive] = useState(false);
 
     const filteredUsers = users.filter(u => {
         const rawName = u.displayName || u.email.split('@')[0];
@@ -75,6 +76,19 @@ export default function Sidebar({ currentUser, users, selected, setSelected, isM
                 ))}
             </div>
 
+            {/* Additional Mobile Navigation in Settings */}
+            {isMobile && (
+                <div className="glass-card" style={{ padding: '15px', marginBottom: '15px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    <div style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>Navigation</div>
+                    <div onClick={() => { setTab('all'); setShowSettings(false); }} style={{ padding: '10px', display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
+                        <Icon icon="solar:users-group-rounded-linear" width="24" /> <span>{t.all_users}</span>
+                    </div>
+                    <div onClick={() => { setTab('contacts'); setShowSettings(false); }} style={{ padding: '10px', display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
+                        <Icon icon="solar:book-bookmark-linear" width="24" /> <span>{t.contacts}</span>
+                    </div>
+                </div>
+            )}
+
             <button className="btn" style={{ width: '100%', background: '#ef4444', marginTop: 'auto' }} onClick={() => signOut(auth)}>
                 <Icon icon="solar:logout-2-linear" width="20" style={{ marginRight: '8px' }} />
                 {t.logout}
@@ -92,67 +106,95 @@ export default function Sidebar({ currentUser, users, selected, setSelected, isM
             overflow: 'hidden'
         }}>
 
-            {/* LEFT RAIL */}
-            <div style={{
-                width: '60px', height: '100%', background: 'rgba(0,0,0,0.2)',
-                borderRight: '1px solid var(--glass-border)',
-                display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '20px 0', gap: '20px'
-            }}>
-                <div onClick={() => setShowSettings(true)} style={{ cursor: 'pointer', padding: '10px', borderRadius: '12px', background: showSettings ? 'var(--accent-color)' : 'transparent', color: showSettings ? 'white' : 'var(--text-secondary)' }}>
-                    <Icon icon="solar:hamburger-menu-linear" width="28" />
-                </div>
+            {/* LEFT RAIL (Desktop Only) */}
+            {!isMobile && (
+                <div style={{
+                    width: '60px', height: '100%', background: 'rgba(0,0,0,0.2)',
+                    borderRight: '1px solid var(--glass-border)',
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '20px 0', gap: '20px'
+                }}>
+                    <div onClick={() => setShowSettings(true)} style={{ cursor: 'pointer', padding: '10px', borderRadius: '12px', background: showSettings ? 'var(--accent-color)' : 'transparent', color: showSettings ? 'white' : 'var(--text-secondary)' }}>
+                        <Icon icon="solar:hamburger-menu-linear" width="28" />
+                    </div>
 
-                <div
-                    onClick={() => { setTab('all'); setDrawerOpen && setDrawerOpen(false); }}
-                    style={{
-                        cursor: 'pointer', padding: '10px', borderRadius: '12px',
-                        background: tab === 'all' ? 'var(--accent-gradient)' : 'transparent',
-                        color: tab === 'all' ? 'white' : 'var(--text-secondary)'
-                    }}
-                    title={t.all_users}
-                >
-                    <Icon icon="solar:users-group-rounded-linear" width="26" />
-                </div>
+                    <div
+                        onClick={() => { setTab('all'); setDrawerOpen && setDrawerOpen(false); }}
+                        style={{
+                            cursor: 'pointer', padding: '10px', borderRadius: '12px',
+                            background: tab === 'all' ? 'var(--accent-gradient)' : 'transparent',
+                            color: tab === 'all' ? 'white' : 'var(--text-secondary)'
+                        }}
+                        title={t.all_users}
+                    >
+                        <Icon icon="solar:users-group-rounded-linear" width="26" />
+                    </div>
 
-                <div
-                    onClick={() => { setTab('contacts'); setDrawerOpen && setDrawerOpen(false); }}
-                    style={{
-                        cursor: 'pointer', padding: '10px', borderRadius: '12px',
-                        background: tab === 'contacts' ? 'var(--accent-gradient)' : 'transparent',
-                        color: tab === 'contacts' ? 'white' : 'var(--text-secondary)'
-                    }}
-                    title={t.contacts}
-                >
-                    <Icon icon="solar:book-bookmark-linear" width="26" />
-                </div>
+                    <div
+                        onClick={() => { setTab('contacts'); setDrawerOpen && setDrawerOpen(false); }}
+                        style={{
+                            cursor: 'pointer', padding: '10px', borderRadius: '12px',
+                            background: tab === 'contacts' ? 'var(--accent-gradient)' : 'transparent',
+                            color: tab === 'contacts' ? 'white' : 'var(--text-secondary)'
+                        }}
+                        title={t.contacts}
+                    >
+                        <Icon icon="solar:book-bookmark-linear" width="26" />
+                    </div>
 
-                <div style={{ marginTop: 'auto' }} onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>
-                    <Icon icon={theme === 'dark' ? "solar:sun-linear" : "solar:moon-linear"} width="24" style={{ cursor: 'pointer', color: 'var(--text-secondary)' }} />
+                    <div style={{ marginTop: 'auto' }} onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>
+                        <Icon icon={theme === 'dark' ? "solar:sun-linear" : "solar:moon-linear"} width="24" style={{ cursor: 'pointer', color: 'var(--text-secondary)' }} />
+                    </div>
                 </div>
-            </div>
+            )}
 
             {/* LIST CONTENT */}
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
 
                 {renderSettings()}
 
-                <h2 style={{ padding: '20px 20px 10px 20px', fontSize: '20px', fontWeight: '800' }}>
-                    {tab === 'contacts' ? t.contacts : t.all_users}
-                </h2>
-
-                {/* Search */}
-                <div style={{ padding: '0 20px 15px 20px' }}>
-                    <div style={{ position: 'relative' }}>
-                        <input
-                            className="input-field"
-                            placeholder={t.search}
-                            value={search}
-                            onChange={e => setSearch(e.target.value)}
-                            style={{ paddingLeft: '40px', background: 'var(--bg-primary)', fontSize: '14px', padding: '10px 40px' }}
-                        />
-                        <Icon icon="solar:magnifer-linear" width="18" style={{ position: 'absolute', left: '15px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
+                {/* Mobile Telegram-style Header */}
+                {isMobile && (
+                    <div style={{
+                        padding: '15px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                        background: 'var(--bg-secondary)', borderBottom: '1px solid var(--glass-border)'
+                    }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                            <div onClick={() => setShowSettings(true)}>
+                                <Icon icon="solar:hamburger-menu-linear" width="28" style={{ cursor: 'pointer' }} />
+                            </div>
+                            <h2 style={{ fontSize: '20px', fontWeight: 'bold' }}>
+                                {tab === 'contacts' ? t.contacts : "DeweloperChat"}
+                            </h2>
+                        </div>
+                        <div onClick={() => setMobileSearchActive(!mobileSearchActive)}>
+                            <Icon icon={mobileSearchActive ? "solar:close-circle-linear" : "solar:magnifer-linear"} width="24" style={{ cursor: 'pointer' }} />
+                        </div>
                     </div>
-                </div>
+                )}
+
+                {/* Desktop Header / Title */}
+                {!isMobile && (
+                    <h2 style={{ padding: '20px 20px 10px 20px', fontSize: '20px', fontWeight: '800' }}>
+                        {tab === 'contacts' ? t.contacts : t.all_users}
+                    </h2>
+                )}
+
+                {/* Search Input (Desktop always visible, Mobile toggleable) */}
+                {(!isMobile || mobileSearchActive) && (
+                    <div style={{ padding: '0 20px 15px 20px', marginTop: isMobile ? '10px' : '0' }}>
+                        <div style={{ position: 'relative' }}>
+                            <input
+                                className="input-field"
+                                placeholder={t.search}
+                                value={search}
+                                onChange={e => setSearch(e.target.value)}
+                                autoFocus={isMobile}
+                                style={{ paddingLeft: '40px', background: 'var(--bg-primary)', fontSize: '14px', padding: '10px 40px' }}
+                            />
+                            <Icon icon="solar:magnifer-linear" width="18" style={{ position: 'absolute', left: '15px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
+                        </div>
+                    </div>
+                )}
 
                 {/* User List */}
                 <div style={{ flex: 1, overflowY: 'auto', padding: '0 10px' }}>
