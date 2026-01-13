@@ -57,10 +57,10 @@ export default function Auth({ auth, db }) {
                 </div>
 
                 <h2 style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '8px' }}>
-                    {isLogin ? 'Welcome Back' : 'Create Account'}
+                    {isLogin ? 'DeweloperChat Login' : 'Join DeweloperChat'}
                 </h2>
                 <p style={{ color: 'var(--text-secondary)', marginBottom: '30px', fontSize: '14px' }}>
-                    {isLogin ? 'Enter your credentials to access your chats' : 'Join the community today'}
+                    {isLogin ? 'Securely connect to your developer community' : 'Create your secure developer identity'}
                 </p>
 
                 <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>

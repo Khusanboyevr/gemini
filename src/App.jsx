@@ -21,9 +21,19 @@ export default function App() {
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   // Settings
-  const [lang, setLang] = useState('uz');
-  const [theme, setTheme] = useState('dark');
-  const [contacts, setContacts] = useState({}); // Moved to Object { uid: "Nickname" }
+  const [lang, setLang] = useState(localStorage.getItem('gemini_lang') || 'uz');
+  const [theme, setTheme] = useState(localStorage.getItem('gemini_theme') || 'dark');
+  const [contacts, setContacts] = useState({});
+
+  // Persist Settings
+  useEffect(() => {
+    localStorage.setItem('gemini_lang', lang);
+  }, [lang]);
+
+  useEffect(() => {
+    localStorage.setItem('gemini_theme', theme);
+    document.body.className = theme === 'light' ? 'light-mode' : '';
+  }, [theme]);
 
   // Auth Listener
   useEffect(() => {
@@ -34,10 +44,7 @@ export default function App() {
     return () => unsub();
   }, []);
 
-  // Theme Management
-  useEffect(() => {
-    document.body.className = theme === 'light' ? 'light-mode' : '';
-  }, [theme]);
+
 
   // Load Contacts
   useEffect(() => {
